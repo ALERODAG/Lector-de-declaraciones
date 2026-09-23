@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: lector-declaraciones
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: LOG_LEVEL
+        value: "INFO"
+      - key: OCR_ENABLED
+        value: "FALSE"

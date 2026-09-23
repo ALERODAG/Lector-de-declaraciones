@@ -1,0 +1,77 @@
+import os
+import pandas as pd
+from openpyxl.styles import PatternFill
+
+from config.settings import PDF_DIRECTORY, OUTPUT_DIR
+from utils.pdf_utils import extraer_texto_pdf
+from utils.excel_utils import aplicar_color_encabezado
+from extractors.declaration_extractor import extract_declarations
+from extractors.product_extractor import ProductExtractor
+
+if __name__ == "__main__":
+    os.makedirs(PDF_DIRECTORY, exist_ok=True)
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+    pdf_files = [
+        os.path.join(PDF_DIRECTORY, f)
+        for f in os.listdir(PDF_DIRECTORY)
+        if f.lower().endswith(".pdf")
+    ]
+    
+    if not pdf_files:
+        print(f"No se encontraron archivos PDF en: {PDF_DIRECTORY}")
+        raise SystemExit(0)
+
+    extractor = ProductExtractor()
+    header_fill = PatternFill(start_color="BDD7EE", end_color="BDD7EE", fill_type="solid")
+
+    for ruta_pdf in pdf_files:
+        base = os.path.basename(ruta_pdf)
+        nombre_sin_ext = os.path.splitext(base)[0]
+        print(f"\nProcesando: {base}")
+
+        texto_extraido = extraer_texto_pdf(ruta_pdf)
+
+        print("texto extraido sin parcing:")  
+        with open("prueba.txt", "w", encoding="utf-8") as f:
+            f.write(texto_extraido)
+        print("fin del texto extraido sin parcing")
+
+
+        
+        # ---- Declaraciones
+        df_decl = extract_declarations(texto_extraido)
+
+        # ---- Productos
+        df_products = extractor.extract_products_from_text(texto_extraido, base)
+
+      
+
+        # ---- Guardado
+        if df_decl.empty and df_products.empty:
+            print(f"   -> No hay datos para guardar.")
+            continue
+
+        excel_path = os.path.join(OUTPUT_DIR, f"{nombre_sin_ext}.xlsx")
+        try:
+            with pd.ExcelWriter(excel_path, engine="openpyxl") as writer:
+                if not df_decl.empty:
+                    df_decl.to_excel(writer, sheet_name="Declaraciones", index=False)
+                    aplicar_color_encabezado(writer.sheets["Declaraciones"], header_fill)
+                if not df_products.empty:
+                    df_products.to_excel(writer, sheet_name="Productos", index=False)
+                    aplicar_color_encabezado(writer.sheets["Productos"], header_fill)
+        except Exception as e:
+            print(f"   -> Error al guardar Excel: {e}")
+            continue
+
+        print(f"   -> Archivo Excel generado: {excel_path}")
+        print(f"      Declaraciones: {len(df_decl)} | Productos: {len(df_products)}")
+        try:
+            os.startfile(excel_path)
+        except Exception as e:
+            print(f"   -> No se pudo abrir el archivo automáticamente: {e}")
+
+    print("\nProceso completado (un Excel por PDF).")
+
+

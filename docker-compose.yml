@@ -1,0 +1,15 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000" # API + Frontend en el mismo puerto
+    volumes:
+      # PDFs de entrada: coloca aquí los archivos a procesar
+      - ./PDF_A_LEER:/app/PDF_A_LEER
+      # Salida de Excels generados
+      - ./SALIDA:/app/SALIDA
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
