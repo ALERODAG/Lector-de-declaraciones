@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import {
-  Download, Loader2, CheckCircle2, FileText, Receipt, Package, FileSpreadsheet
+  Download, Loader2, CheckCircle2, FileText, Receipt, Package, FileSpreadsheet, BarChart3
 } from 'lucide-react';
 import './App.css';
 
@@ -11,6 +11,7 @@ import { InvoiceView } from './components/InvoiceView';
 import { ProductModal } from './components/ProductModal';
 import { Sidebar, Header } from './components/Layout';
 import { UploadZone } from './components/UploadZone';
+import { Comparative } from './components/Comparative';
 
 // Services
 import { api } from './services/api';
@@ -181,6 +182,12 @@ export default function App() {
                   icon={<Receipt size={18} />}
                   label="Facturas Extraídas"
                 />
+                <TabButton 
+                  active={activeTab === 'comparative'} 
+                  onClick={() => setActiveTab('comparative')}
+                  icon={<BarChart3 size={18} />}
+                  label="Comparativo"
+                />
               </div>
 
               {/* Tab Content */}
@@ -223,6 +230,9 @@ export default function App() {
                       </div>
                     )}
                   </div>
+                )}
+                {activeTab === 'comparative' && (
+                  <Comparative comparative={result.comparative} />
                 )}
               </div>
 

@@ -21,6 +21,7 @@ from domain.contracts import DeclarationParserProtocol, TextExtractorProtocol
 from domain.entities import ProcessingResult, Product, InvoiceDocument
 from domain.value_objects import Quantity
 from application.services.invoice_processor import InvoiceProcessor
+from application.services.comparative_service import ComparativeService
 from extractors.declaration_extractor import extract_declarations
 from extractors.product_extractor import extraer_texto_pdf as legacy_extract_text
 
@@ -41,6 +42,7 @@ class ProcessDocumentsUseCase:
         declaration_parser: DeclarationParserProtocol,
         invoice_processor: InvoiceProcessor,
         product_extractor=None,
+        comparative_service: ComparativeService | None = None,
     ) -> None:
         """Inicializa el caso de uso con las dependencias necesarias.
 
@@ -49,11 +51,13 @@ class ProcessDocumentsUseCase:
             declaration_parser: Implementación de DeclarationParserProtocol.
             invoice_processor: Instancia de InvoiceProcessor.
             product_extractor: Instancia de ProductExtractor (opcional).
+            comparative_service: Instancia de ComparativeService (opcional).
         """
         self.text_extractor = text_extractor
         self.declaration_parser = declaration_parser
         self.invoice_processor = invoice_processor
         self.product_extractor = product_extractor
+        self.comparative_service = comparative_service or ComparativeService()
 
     def execute(
         self,
@@ -139,4 +143,7 @@ class ProcessDocumentsUseCase:
             invoices=invoices,
             declarations_data=declarations_data,
             products_data=products_data,
+            comparative=self.comparative_service.build(
+                declarations_data, products_data, invoices
+            ),
         )

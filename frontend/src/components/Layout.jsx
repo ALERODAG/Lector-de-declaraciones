@@ -61,7 +61,10 @@ export function Sidebar({
             {invoicesCount > 0 && <span className="nav-badge">{invoicesCount}</span>}
           </button>
 
-          <button className="nav-item">
+          <button
+            className={`nav-item ${activeTab === 'comparative' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('comparative'); setSidebarOpen(false); }}
+          >
             <div className="nav-item-content"><BarChart3 size={20} /> Comparativo</div>
           </button>
         </div>

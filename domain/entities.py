@@ -148,3 +148,4 @@ class ProcessingResult:
     invoices: list[InvoiceDocument]
     declarations_data: list[dict] | None = None
     products_data: list[dict] | None = None
+    comparative: dict | None = None

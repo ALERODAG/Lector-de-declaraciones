@@ -9,8 +9,9 @@ y se usan únicamente para la capa de API.
 
 from __future__ import annotations
 
-from pydantic import BaseModel
 from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel
 
 
 class DeclarationSchema(BaseModel):
@@ -67,6 +68,7 @@ class ProcessingDataSchema(BaseModel):
     declarations: List[Dict[str, Any]]
     products: List[Dict[str, Any]]
     invoices: List[InvoiceDocumentSchema]
+    comparative: Optional[Dict[str, Any]] = None
 
 
 class StandardResponse(BaseModel):

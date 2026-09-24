@@ -161,6 +161,7 @@ async def process_multiple(declaration: UploadFile = File(...), invoices: list[U
             declarations=result.declarations_data or [],
             products=result.products_data or [_product_to_dict(p) for p in result.products],
             invoices=[_invoice_document_to_dict(invoice) for invoice in result.invoices],
+            comparative=result.comparative or {},
         )
 
         return StandardResponse(success=True, message="Archivos procesados correctamente", data=response_data)
