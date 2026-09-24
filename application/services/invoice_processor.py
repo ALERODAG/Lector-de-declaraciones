@@ -7,11 +7,15 @@ Flujo de datos:
     text → InvoiceProcessor.process() →ExtractorContract.extract() → InvoiceDocument
 """
 
+import logging
+
 import infrastructure.extractors  # noqa: F401
-from core.registry import get_registered_extractors
 from core.exceptions import ExtractionError
+from core.registry import get_registered_extractors
 from domain.contracts import ExtractorContract
 from domain.entities import InvoiceDocument
+
+logger = logging.getLogger("lector_declaraciones.invoice_processor")
 
 
 class InvoiceProcessor:
@@ -35,7 +39,10 @@ class InvoiceProcessor:
 
         Itera sobre los extractores registrados en orden de registro.
         El primer extractor que retorne True en can_process() se usa
-        para extraer los datos.
+        para extraer los datos. Si un extractor registrado reconoce el
+        documento pero no consigue extraer items (ExtractionError), se
+        prueba el siguiente extractor (comportamiento heredado del
+        servicio legacy procesar_factura_general).
 
         Args:
             text: Texto crudo extraído del PDF de la factura.
@@ -46,9 +53,19 @@ class InvoiceProcessor:
         Raises:
             ExtractionError: Si ningún extractor puede procesar el documento.
         """
+        fallos: list[str] = []
         for provider_name, extractor_cls in self._registry.items():
             extractor = extractor_cls()
-            if extractor.can_process(text):
-                return extractor.extract(text)
+            try:
+                if extractor.can_process(text):
+                    return extractor.extract(text)
+            except ExtractionError:
+                logger.warning(
+                    "Extractor %s recognized the document but could not extract items", provider_name
+                )
+                fallos.append(provider_name)
 
-        raise ExtractionError("No extractor could process the invoice document")
+        raise ExtractionError(
+            "No extractor could process the invoice document"
+            + (f" (failed after recognition: {', '.join(fallos)})" if fallos else "")
+        )

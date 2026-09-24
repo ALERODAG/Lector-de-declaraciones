@@ -3,97 +3,38 @@
 Implementa BaseExtractor y se registra automáticamente en el
 EXTRACTOR_REGISTRY bajo el nombre "sofabex".
 
+Reutiliza íntegramente la lógica de parsing del módulo legacy
+(extractors.factura_sofabex.procesar_factura_sofabex_text), de modo
+que ninguna funcionalidad del formato original se pierde y el extractor
+puede evolucionar de forma independiente.
+
 Flujo de datos:
-    texto crudo → SofabexExtractor.extract() → InvoiceDocument
+    texto crudo → procesar_factura_sofabex_text() → dict
+    → SofabexExtractor.extract() → InvoiceDocument
 
 Patrón de diseño: Strategy (register_extractor decorator)
 """
 
 import logging
-import re
 from decimal import Decimal
-from typing import cast
 
+from core.exceptions import ExtractionError
 from core.registry import register_extractor
 from domain.entities import InvoiceDocument, InvoiceItem, InvoiceMetadata
 from domain.value_objects import Money, Quantity
-from infrastructure.extractors.base import BaseExtractor, normalize_numeric_value
-from core.exceptions import ExtractionError
+from extractors.factura_sofabex import procesar_factura_sofabex_text
+from infrastructure.extractors.base import BaseExtractor
 
 logger = logging.getLogger("lector_declaraciones.extractors.sofabex")
 
 
-def _extract_date(text: str) -> str:
-    """Extrae la primera fecha en formato DD/MM/AAAA del texto.
-
-    Args:
-        text: Texto del PDF de la factura.
-
-    Returns:
-        Cadena con la fecha encontrada o "N/A".
-    """
-    match = re.search(r"(\d{2}/\d{2}/\d{4})", text)
-    return match.group(1) if match else "N/A"
-
-
-def _extract_invoice_number(text: str) -> str:
-    """Extrae el número de factura (patrón: FACTURE N°/º: XXXXX).
-
-    Args:
-        text: Texto del PDF de la factura.
-
-    Returns:
-        Cadena con el número de factura o "N/A".
-    """
-    match = re.search(r"FACTURE\s+N[°º]?\s*[:]?\s*([A-Z0-9\-]+)", text, re.IGNORECASE)
-    return match.group(1).strip() if match else "N/A"
-
-
-def _extract_importer(text: str) -> str:
-    """Extrae el nombre del importador (sección ADRESSE DE FACTURATION).
-
-    Args:
-        text: Texto del PDF de la factura.
-
-    Returns:
-        Cadena con el nombre del importador o "N/A".
-    """
-    match = re.search(r"ADRESSE DE FACTURATION\s*[:\n]+([^\n]+)", text, re.IGNORECASE)
-    return match.group(1).strip() if match else "N/A"
-
-
-def _parse_line(line: str) -> tuple[str, str, float, str, float, float] | None:
-    """Parsea una línea de producto de factura SOFABEX.
-
-    Formato esperado: "001 N300501 /N3005 POMPE ... 360,00 O 9,54 3 434,40"
-
-    Args:
-        line: Línea de texto del PDF.
-
-    Returns:
-        Tupla (referencia, descripcion, cantidad, unidad, valor_unitario, valor_total)
-        o None si la línea no coincide con el patrón.
-    """
-    pattern = re.compile(
-        r"^(\d{3})\s+(.+?)\s+([\d\s\.]+(?:[\.,]\d+)?)\s+([A-Z0-9]{1,3})\s+([\d\s\.]+(?:[\.,]\d+)?)\s+([\d\s\.]+(?:[\.,]\d+)?)$"
-    )
-    match = pattern.match(line)
-    if not match:
-        return None
-
-    codigo_descripcion = match.group(2).strip()
-    cantidad = normalize_numeric_value(match.group(3))
-    unidad = match.group(4).strip()
-    valor_unitario = normalize_numeric_value(match.group(5))
-    valor_total = normalize_numeric_value(match.group(6))
-
-    if " " in codigo_descripcion:
-        referencia, descripcion = codigo_descripcion.split(" ", 1)
-    else:
-        referencia = codigo_descripcion
-        descripcion = ""
-
-    return referencia, descripcion, cantidad, unidad, valor_unitario, valor_total
+def _money(meta: dict, key: str, moneda: str, default="0.0") -> Money:
+    """Convierte un valor numérico de metadata a Money de forma segura."""
+    try:
+        amount = Decimal(str(meta.get(key) or default))
+    except Exception:
+        amount = Decimal(default)
+    return Money(amount=amount, currency=moneda)
 
 
 @register_extractor("sofabex")
@@ -127,43 +68,56 @@ class SofabexExtractor(BaseExtractor):
         if not self.can_process(text):
             raise ExtractionError("Sofabex extractor cannot process this document")
 
-        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        resultado = procesar_factura_sofabex_text(text)
+        if not resultado or not resultado["items"]:
+            raise ExtractionError("No invoice lines were recognized for Sofabex")
+
+        meta = resultado["metadata"]
+        moneda = str(meta.get("moneda") or "EUR")
+
         items = []
-
-        for line in lines:
-            parsed = _parse_line(line)
-            if parsed is None:
-                continue
-
-            referencia, descripcion, cantidad, unidad, valor_unitario, valor_total = parsed
+        for prod in resultado["items"]:
             items.append(
                 InvoiceItem(
-                    referencia=referencia,
-                    descripcion=descripcion,
-                    cantidad=Quantity(value=Decimal(str(cantidad))),
-                    unidad=unidad,
-                    valor_unitario=Money(amount=Decimal(str(valor_unitario)), currency="EUR"),
-                    valor_total=Money(amount=Decimal(str(valor_total)), currency="EUR"),
+                    referencia=str(prod.get("referencia") or ""),
+                    descripcion=str(prod.get("descripcion") or ""),
+                    cantidad=Quantity(value=Decimal(str(prod.get("cantidad") or 0))),
+                    unidad=str(prod.get("unidad") or "UND"),
+                    valor_unitario=Money(
+                        amount=Decimal(str(prod.get("valor_unitario") or 0)),
+                        currency=moneda,
+                    ),
+                    valor_total=Money(
+                        amount=Decimal(str(prod.get("valor_total") or 0)),
+                        currency=moneda,
+                    ),
                 )
             )
 
         if not items:
             raise ExtractionError("No invoice lines were recognized for Sofabex")
 
+        total_mercancia = sum(item.valor_total.amount for item in items)
+        total_flete = _money(meta, "flete", moneda).amount
+        total_seguro = _money(meta, "seguro", moneda).amount
+        total_otros = _money(meta, "otros_gastos", moneda).amount
         metadata = InvoiceMetadata(
-            num_factura=_extract_invoice_number(text),
-            fecha_factura=_extract_date(text),
+            num_factura=str(meta.get("num_factura") or "N/A"),
+            fecha_factura=str(meta.get("fecha_factura") or "N/A"),
             proveedor="SOFABEX",
-            pais_origen="FRANCIA",
-            incoterm="FOB",
-            moneda="EUR",
-            tipo_cambio=Decimal("1.0"),
-            importador=_extract_importer(text),
-            total_mercancia=Money(amount=sum(item.valor_total.amount for item in items), currency="EUR"),
-            flete=Money(amount=Decimal("0.0"), currency="EUR"),
-            seguro=Money(amount=Decimal("0.0"), currency="EUR"),
-            otros_gastos=Money(amount=Decimal("0.0"), currency="EUR"),
-            total_factura=Money(amount=sum(item.valor_total.amount for item in items), currency="EUR"),
+            pais_origen=str(meta.get("pais_origen") or "FRANCIA"),
+            incoterm=str(meta.get("incoterm") or "FOB"),
+            moneda=moneda,
+            tipo_cambio=Decimal(str(meta.get("tipo_cambio") or 1.0)),
+            importador=str(meta.get("importador") or "N/A"),
+            total_mercancia=Money(amount=total_mercancia, currency=moneda),
+            flete=Money(amount=total_flete, currency=moneda),
+            seguro=Money(amount=total_seguro, currency=moneda),
+            otros_gastos=Money(amount=total_otros, currency=moneda),
+            total_factura=Money(
+                amount=total_mercancia + total_flete + total_seguro + total_otros,
+                currency=moneda,
+            ),
         )
 
         logger.info("Sofabex invoice extracted with %d items", len(items))

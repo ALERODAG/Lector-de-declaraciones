@@ -1,21 +1,19 @@
-import pdfplumber
 import pandas as pd
 import re
 from infrastructure.pdf.text_extractor import extract_text_from_pdf
 from utils.numeric_utils import parse_number as convertir_numero
 
 
-def procesar_factura_sofabex(pdf_path: str):
-    """Procesa una factura del proveedor SOFABEX y extrae metadata + items.
+def procesar_factura_sofabex_text(raw_texto: str):
+    """Procesa el texto de una factura SOFABEX y extrae metadata + items.
 
     Args:
-        pdf_path: Ruta al archivo PDF de la factura SOFABEX.
+        raw_texto: Texto crudo del PDF de la factura SOFABEX.
 
     Returns:
         Diccionario con estructura {"metadata": {...}, "items": [...]} o None
-        si el PDF no contiene datos de SOFABEX.
+        si el texto no contiene datos de SOFABEX.
     """
-    raw_texto = extract_text_from_pdf(pdf_path)
     texto_upper = raw_texto.upper()
     
     if "SOFABEX" not in texto_upper:
@@ -122,3 +120,17 @@ def procesar_factura_sofabex(pdf_path: str):
         "metadata": metadata,
         "items": items
     }
+
+
+def procesar_factura_sofabex(pdf_path: str):
+    """Procesa una factura del proveedor SOFABEX y extrae metadata + items.
+
+    Args:
+        pdf_path: Ruta al archivo PDF de la factura SOFABEX.
+
+    Returns:
+        Diccionario con estructura {"metadata": {...}, "items": [...]} o None
+        si el PDF no contiene datos de SOFABEX.
+    """
+    raw_texto = extract_text_from_pdf(pdf_path)
+    return procesar_factura_sofabex_text(raw_texto)
