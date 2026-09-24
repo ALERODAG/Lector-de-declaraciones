@@ -7,7 +7,7 @@ export function ProductModal({ product, onClose, onSaveObservation, savedObserva
   if (!product) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onMouseDown={e => e.preventDefault()}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-title">

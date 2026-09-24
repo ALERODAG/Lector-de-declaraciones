@@ -232,7 +232,13 @@ export default function App() {
                   </div>
                 )}
                 {activeTab === 'comparative' && (
-                  <Comparative comparative={result.comparative} />
+                  <Comparative
+                    comparative={result.comparative}
+                    onSaveObservation={(ref, text) =>
+                      setObservations(prev => ({ ...prev, [`ref:${ref}`]: text }))
+                    }
+                    savedObservations={observations}
+                  />
                 )}
               </div>
 

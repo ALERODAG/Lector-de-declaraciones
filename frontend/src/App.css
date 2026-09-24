@@ -1116,6 +1116,33 @@ tr:hover td {
   margin-top: 4px;
 }
 
+/* Referencia clicable en Comparativo */
+.ref-link-btn {
+  background: none;
+  border-bottom: 1px dashed var(--text-muted);
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent-dark);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color var(--transition);
+}
+
+.ref-link-btn:hover {
+  color: #000;
+}
+
+.ref-obs-dot {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
 /* Loader */
 .loader-wrap {
   display: flex;

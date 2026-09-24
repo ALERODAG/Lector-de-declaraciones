@@ -1,4 +1,5 @@
-import { CheckCircle2, AlertTriangle, BarChart3, Scale } from 'lucide-react';
+import { useState } from 'react';
+import { CheckCircle2, AlertTriangle, BarChart3, Scale, X, StickyNote, MessageSquare } from 'lucide-react';
 
 /* ─────────────────────────────────────────────────────────────────────────
    Helpers
@@ -159,9 +160,82 @@ function SegurosSection({ seguros = [], factorSeguros }) {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
+   Modal de observaciones por referencia
+   - No se cierra al hacer click fuera: solo con Cancelar / Guardar / X
+───────────────────────────────────────────────────────────────────────── */
+function ObservationModal({ referencia, cantFactura, cantDim, match, savedObservation, onSave, onClose }) {
+  const [text, setText] = useState(savedObservation || '');
+
+  return (
+    <div className="modal-overlay" onMouseDown={e => e.preventDefault()}>
+      <div className="modal-content">
+        <div className="modal-header">
+          <div className="modal-title">
+            <div className="modal-icon-container">
+              <StickyNote size={20} color="#000" />
+            </div>
+            Observaciones — Referencia {referencia}
+          </div>
+          <button onClick={onClose} className="close-modal-btn" aria-label="Cerrar">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="modal-body">
+          <div className="product-details-grid">
+            <div className="detail-item">
+              <span className="detail-label">Referencia</span>
+              <span className="detail-value">{referencia}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">Cant. Factura</span>
+              <span className="detail-value">{fmtQty(cantFactura)}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">Cant. DIM</span>
+              <span className="detail-value">{fmtQty(cantDim)}</span>
+            </div>
+            <div className="detail-item">
+              <span className="detail-label">Estado</span>
+              <span className="detail-value">
+                {match
+                  ? <span style={{ color: '#059669', fontWeight: 700 }}>✓ Cuadra</span>
+                  : <span style={{ color: '#DC2626', fontWeight: 700 }}>✗ Diferencia</span>}
+              </span>
+            </div>
+          </div>
+
+          <div className="observations-section">
+            <label className="observations-label">Observaciones</label>
+            <textarea
+              className="observations-textarea"
+              placeholder="Ingrese observaciones sobre esta referencia..."
+              value={text}
+              onChange={e => setText(e.target.value)}
+              maxLength={500}
+              autoFocus
+            />
+            <div className="char-counter">
+              {text.length} / 500
+            </div>
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={() => { onSave(text); onClose(); }}>
+            Guardar observaciones
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
    Section: Cantidades por referencia (DIM vs factura)
 ───────────────────────────────────────────────────────────────────────── */
-function CantidadesSection({ cantidades = [] }) {
+function CantidadesSection({ cantidades = [], onSelectRef, savedObs = {} }) {
   const malas = cantidades.filter(c => !c.match).length;
   const buenas = cantidades.length - malas;
 
@@ -197,7 +271,19 @@ function CantidadesSection({ cantidades = [] }) {
           <tbody>
             {cantidades.map((c, i) => (
               <tr key={i}>
-                <td style={{ fontWeight: 600 }}>{c.referencia}</td>
+                <td style={{ fontWeight: 600 }}>
+                  <button
+                    type="button"
+                    onClick={() => onSelectRef(c)}
+                    className="ref-link-btn"
+                    title="Haz clic para agregar observación"
+                  >
+                    {c.referencia}
+                    {savedObs[c.referencia]
+                      ? <MessageSquare size={14} className="ref-obs-dot" style={{ color: 'var(--accent-dark)' }} />
+                      : <MessageSquare size={14} className="ref-obs-dot" />}
+                  </button>
+                </td>
                 <td style={{ textAlign: 'center' }}>
                   <Badge value={fmtQty(c.cantidad_factura)} ok={c.match} />
                 </td>
@@ -249,10 +335,11 @@ function CantidadesSection({ cantidades = [] }) {
 /* ─────────────────────────────────────────────────────────────────────────
    Main Comparative Component
 ───────────────────────────────────────────────────────────────────────── */
-export function Comparative({ comparative = {} }) {
+export function Comparative({ comparative = {}, onSaveObservation, savedObservations = {} }) {
   const seguros = comparative?.seguros ?? [];
   const cantidades = comparative?.cantidades ?? [];
   const factorSeguros = comparative?.factor_seguros;
+  const [selectedRef, setSelectedRef] = useState(null);
 
   if (!seguros.length && !cantidades.length) {
     return (
@@ -305,7 +392,23 @@ export function Comparative({ comparative = {} }) {
       </div>
 
       <SegurosSection seguros={seguros} factorSeguros={factorSeguros} />
-      <CantidadesSection cantidades={cantidades} />
+      <CantidadesSection
+        cantidades={cantidades}
+        onSelectRef={setSelectedRef}
+        savedObs={savedObservations}
+      />
+
+      {selectedRef && (
+        <ObservationModal
+          referencia={selectedRef.referencia}
+          cantFactura={selectedRef.cantidad_factura}
+          cantDim={selectedRef.cantidad_dim}
+          match={selectedRef.match}
+          savedObservation={savedObservations[selectedRef.referencia]}
+          onSave={(text) => onSaveObservation && onSaveObservation(selectedRef.referencia, text)}
+          onClose={() => setSelectedRef(null)}
+        />
+      )}
     </div>
   );
 }

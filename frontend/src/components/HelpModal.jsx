@@ -82,7 +82,7 @@ const SECTIONS = [
 
 export function HelpModal({ onClose }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onMouseDown={e => e.preventDefault()}>
       <div
         className="modal-content help-modal"
         onClick={e => e.stopPropagation()}
