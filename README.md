@@ -4,7 +4,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=000)](https://react.dev/)
 [![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-13%20passed-31A952)]()
+[![Tests](https://img.shields.io/badge/tests-30%20passed-31A952)]()
 
 Sistema automatizado para extraer información de **declaraciones de importación (DIM)** y **facturas proveedor** desde PDFs de formato propietario, y generarla en estructuras Excel listas para el proceso de nacionalización.
 
@@ -29,7 +29,8 @@ Un pipeline automatizado que:
 2. Detecta el **proveedor de la factura** y aplica su extractor específico (sistema de plugins).
 3. Parsea items, cantidades, precios, totales y metadata (num factura, fecha, incoterm, moneda, importador).
 4. **Valida la factura**: la suma de los items debe cuadrar con el total del PDF.
-5. Expone un frontend React para revisar el resultado y una API FastAPI para integrarlo a otros flujos.
+5. **Compara DIM vs factura**: seguros USD (FOB × 0,00085) por declaración y cantidades por referencia.
+6. Expone un frontend React para revisar el resultado y una API FastAPI para integrarlo a otros flujos.
 
 ## Capturas
 
@@ -62,7 +63,8 @@ PDF → PDFTextExtractor (pdfplumber → OCR fallback)
         → extraer_metadata + parse de items
           → InvoiceDocument{metadata, items}
             → validación (∑ items == total factura)
-              → respuesta JSON / Excel / UI React
+              → ComparativeService (seguros USD + cantidades por referencia)
+                → respuesta JSON / Excel / UI React
 ```
 
 ### Sistema de extractores (plugin-friendly)
@@ -116,6 +118,9 @@ docker run -p 8000:8000 lector_declaraciones
 1. Abrir `http://127.0.0.1:8000`.
 2. En **Subir facturas**, adjuntar la declaración (`declaration`) y una o más facturas (`invoices`).
 3. Revisar items, cantidades, valores y totales. Los valores se muestran en la moneda original de la factura.
+4. En la pestaña **Comparativo**, validar:
+   - **Seguros USD**: seguro calculado (FOB × 0,00085) vs seguro declarado en cada DIM, con su diferencia.
+   - **Cantidades por referencia**: cantidades de factura vs cantidades de la DIM para las referencias que existen en ambas.
 
 ### Endpoint API
 
@@ -126,7 +131,7 @@ multipart/form-data
   - invoices:    PDFs de facturas (1..n)
 ```
 
-Respuesta: JSON estandarizado con metadata, items y totales de cada documento.
+Respuesta: JSON estandarizado con metadata, items, totales y `comparative` (seguros y cantidades) de cada documento.
 
 ## Material de ejemplo
 
@@ -143,6 +148,7 @@ pytest
 - [x] Refactorización a Clean Architecture
 - [x] Extractor ADK con metadata real (moneda, incoterm, importador)
 - [x] Validación de cuadratura items ↔ total factura
+- [x] Pestaña comparativo: seguros USD (FOB × 0,00085) y cantidades por referencia
 - [ ] Persistencia de resultados para auditoría
 - [ ] Procesamiento asíncrono (Celery/Redis)
 - [ ] Nuevos proveedores de factura como plugins
